@@ -80,56 +80,74 @@ TAGTYPES = {
     "E": format(fg=RED, bold=True),
 }
 
-retag = re.compile("^([A-Z])/([^\(]+)\(([^\)]+)\): (.*)$")
 
-# to pick up -d or -e
-adb_args = ' '.join(sys.argv[1:])
+def go(ignores):
+    retag = re.compile("^([A-Z])/([^\(]+)\(([^\)]+)\): (.*)$")
 
-# if someone is piping in to us, use stdin as input.  if not, invoke adb logcat
-if os.isatty(sys.stdin.fileno()):
-    input = os.popen("adb %s logcat" % adb_args)
-else:
-    input = sys.stdin
-
-while True:
-    try:
-        line = input.readline().rstrip()
-    except KeyboardInterrupt:
-        break
-
-    match = retag.match(line)
-    if not match is None:
-        tagtype, tag, owner, message = match.groups()
-        linebuf = StringIO.StringIO()
-
-        # write out tagtype colored edge
-        if not tagtype in TAGTYPES: break
-        linebuf.write("%s%s%s" % (TAGTYPES[tagtype], tagtype, format(reset=True)))
-
-        color = allocate_color(tag)
-        linebuf.write(" / %s%s%s" % (format(fg=color, bold=True), tag, format(reset=True)))
-
-        linebuf.write(" (%s): " % owner)
-
-        # format tag message using rules
-        for matcher in RULES:
-            replace = RULES[matcher]
-            message = matcher.sub(replace, message)
-
-        linebuf.write("%s%s%s" % (format(fg=color, bold=True), message, format(reset=True)))
-        line = linebuf.getvalue()
-
-    print line
-    if len(line) == 0: break
+    adb_args = ''
+    if '-d' in sys.argv:
+        adb_args += ' -d '
+    if '-e' in sys.argv:
+        adb_args += ' -e '
 
 
+    # if someone is piping in to us, use stdin as input.  if not, invoke adb logcat
+    if os.isatty(sys.stdin.fileno()):
+        input = os.popen("adb %s logcat" % adb_args)
+    else:
+        input = sys.stdin
 
+    while True:
+        try:
+            line = input.readline().rstrip()
+        except KeyboardInterrupt:
+            break
 
+        if ignores is not None:
+            cont = False
+            for i in ignores:
+                if i in line:
+                    cont = True
+                    break
+            if cont:
+                continue
 
+        match = retag.match(line)
+        if not match is None:
+            tagtype, tag, owner, message = match.groups()
+            linebuf = StringIO.StringIO()
 
+            # write out tagtype colored edge
+            if not tagtype in TAGTYPES: break
+            linebuf.write("%s%s%s" % (TAGTYPES[tagtype], tagtype, format(reset=True)))
 
+            color = allocate_color(tag)
+            linebuf.write(" / %s%s%s" % (format(fg=color, bold=True), tag, format(reset=True)))
 
+            linebuf.write(" (%s): " % owner)
 
+            # format tag message using rules
+            for matcher in RULES:
+                replace = RULES[matcher]
+                message = matcher.sub(replace, message)
 
+            linebuf.write("%s%s%s" % (format(fg=color, bold=True), message, format(reset=True)))
+            line = linebuf.getvalue()
 
+        print line
+        if len(line) == 0: break
 
+if __name__ == '__main__':
+    from optparse import OptionParser
+
+    parser = OptionParser()
+    parser.add_option("-i", "--ignore", dest="ignores", action="append",
+            help="Ignore a line that matches the string passed")
+
+    (options, args) = parser.parse_args()
+    if options.ignores:
+        ignores = tuple(options.ignores)
+    else:
+        ignores = None
+
+    go(ignores)
