@@ -106,7 +106,7 @@ def go(ignores):
         if ignores is not None:
             cont = False
             for i in ignores:
-                if i in line:
+                if i.search(line):
                     cont = True
                     break
             if cont:
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
     if options.ignores:
-        ignores = tuple(options.ignores)
+        ignores = tuple(re.compile(i) for i in options.ignores)
     else:
         ignores = None
 
